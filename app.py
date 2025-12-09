@@ -1,224 +1,440 @@
 import streamlit as st
 import math
 
-# --- 페이지 설정 ---
+# 페이지 설정
 st.set_page_config(
-    page_title="슬레드 진동저감장치 선정 계산기",
+    page_title="진동 격리기 선정 계산기",
     page_icon="🔧",
-    layout="centered"
+    layout="wide"
 )
 
-# --- 스타일 커스텀 (CSS) ---
+# 커스텀 CSS
 st.markdown("""
-    <style>
-    .main {
-        background-color: #f8f9fa;
-    }
-    .stAppHeader {
+<style>
+    .main-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-    }
-    .big-font {
-        font-size: 20px !important;
-        font-weight: bold;
-    }
-    .result-box {
-        background-color: white;
-        padding: 20px;
+        padding: 30px;
         border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-        border: 1px solid #e0e0e0;
+        text-align: center;
+        color: white;
+        margin-bottom: 30px;
     }
-    .warning-box {
-        background-color: #fff3cd;
-        border-left: 5px solid #ffc107;
-        padding: 10px;
+    .formula-box {
+        background: #fff3cd;
+        border-left: 4px solid #ffc107;
+        padding: 15px;
+        margin: 15px 0;
+        border-radius: 5px;
+        font-family: monospace;
+        font-size: 13px;
+    }
+    .calculation-box {
+        background: #e3f2fd;
+        border-left: 4px solid #2196F3;
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 5px;
+        font-family: monospace;
+        font-size: 13px;
+    }
+    .status-good {
+        background: #d4edda;
+        color: #155724;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+    }
+    .status-warning {
+        background: #fff3cd;
         color: #856404;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-weight: 600;
     }
-    .error-box {
-        background-color: #f8d7da;
-        border-left: 5px solid #721c24;
-        padding: 10px;
+    .status-bad {
+        background: #f8d7da;
         color: #721c24;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-weight: 600;
     }
-    </style>
-    """, unsafe_allow_html=True)
+    .recommendation-box {
+        background: #e7f3ff;
+        border-left: 4px solid #2196F3;
+        padding: 15px;
+        margin-top: 20px;
+        border-radius: 5px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# --- 세션 상태 초기화 (도우미 값 연동용) ---
-if 'frequency' not in st.session_state:
-    st.session_state.frequency = 34.0
+# 헤더
+st.markdown("""
+<div class="main-header">
+    <h1>🔧 진동 격리기 선정 계산기</h1>
+    <p>Vibration Isolator Selection Calculator</p>
+</div>
+""", unsafe_allow_html=True)
 
-# --- 헤더 ---
-st.title("🔧 슬레드 진동저감장치 선정")
-st.markdown("### Vibration Isolator Selection Calculator")
-st.markdown("---")
+# 사이드바 - 입력 섹션
+st.sidebar.header("📋 입력 파라미터")
 
-# --- 입력 섹션 ---
-st.header("📋 시스템 제원 입력")
+# 기본 입력
+load = st.sidebar.number_input("진동저감장치 지탱하중 (kg)", min_value=0.0, value=500.0, step=10.0)
+num_isolators = st.sidebar.number_input("아이솔레이터 개수", min_value=1, value=4, step=1)
 
-col1, col2 = st.columns(2)
-
-with col1:
-    load = st.number_input("진동저감장치 지탱하중 (kg)", value=500.0, step=10.0)
+# 주파수 계산 도우미
+with st.sidebar.expander("⚡ 주파수 계산 도우미"):
+    helper_speed = st.number_input("주행 속도 (m/s)", min_value=0.0, value=340.0, step=10.0)
+    helper_pitch = st.number_input("주기/간격 (m)", min_value=0.1, value=10.0, step=0.1)
     
-with col2:
-    num_isolators = st.number_input("아이솔레이터 개수", value=4, step=1)
+    if st.button("계산 및 적용"):
+        calculated_freq = helper_speed / helper_pitch
+        st.session_state['calculated_freq'] = calculated_freq
+        st.success(f"계산된 주파수: {calculated_freq:.2f} Hz")
+    
+    st.info("예시: 340m/s ÷ 10m = 34Hz\n\n간격 예시: 레일 이음매(10~25m), 체결구(0.6m)")
 
-# --- 주파수 계산 도우미 (Expander) ---
-with st.expander("⚡ 주파수 계산 도우미 (속도/간격으로 계산)"):
-    h_col1, h_col2, h_col3 = st.columns([1, 1, 1])
-    with h_col1:
-        speed = st.number_input("주행 속도 (m/s)", value=340.0)
-    with h_col2:
-        pitch = st.number_input("주기/간격 (m)", value=10.0)
-    with h_col3:
-        st.write("") # 여백용
-        st.write("") 
-        if st.button("계산 및 적용"):
-            if pitch > 0:
-                calc_freq = speed / pitch
-                st.session_state.frequency = calc_freq
-                st.success(f"적용 완료: {calc_freq:.1f} Hz")
-                st.rerun() # 화면 갱신
-            else:
-                st.error("간격은 0보다 커야 합니다.")
+# 주파수 입력 (계산된 값이 있으면 사용)
+if 'calculated_freq' in st.session_state:
+    default_freq = st.session_state['calculated_freq']
+else:
+    default_freq = 34.0
 
-# --- 2열 입력 (주파수 등) ---
-col3, col4 = st.columns(2)
+excite_freq = st.sidebar.number_input("주 가진 주파수 (Hz)", min_value=0.1, value=default_freq, step=0.1)
 
-with col3:
-    # session_state 값을 기본값으로 사용
-    excite_freq = st.number_input(
-        "주 가진 주파수 (Hz)", 
-        value=st.session_state.frequency, 
-        step=1.0, 
-        key="freq_input" # 키를 지정하여 state와 연동
-    )
-    # 입력값이 바뀌면 state 업데이트
-    st.session_state.frequency = excite_freq
+target_efficiency = st.sidebar.number_input("목표 격리 효율 (%)", min_value=0.0, max_value=99.9, value=90.0, step=0.1)
 
-with col4:
-    target_efficiency = st.number_input("목표 격리 효율 (%)", value=90.0, step=0.5, max_value=99.9)
-
-# --- 추가 입력 (목표 고유 진동수) ---
-target_natural_freq_input = st.number_input(
-    "목표 고유 진동수 (Hz) - 비워두면 자동 계산 (0: 자동)", 
+target_natural_freq = st.sidebar.number_input(
+    "목표 고유 진동수 (Hz)", 
+    min_value=0.0, 
     value=0.0, 
     step=0.1,
-    help="0으로 설정하면 주 가진 주파수의 35%로 자동 설정됩니다."
+    help="0으로 두면 자동 계산 (0.35 × 가진 주파수)"
 )
 
-st.markdown("---")
+# 계산 버튼
+calculate_button = st.sidebar.button("🔍 계산하기", type="primary", use_container_width=True)
 
-# --- 계산 로직 ---
-if st.button("결과 계산하기", type="primary", use_container_width=True):
-    
-    # 2단계: 목표 고유진동수 선정
-    max_natural_freq = excite_freq / math.sqrt(2)
-    min_rec_freq = 0.3 * excite_freq
-    max_rec_freq = 0.4 * excite_freq
-
-    is_manual = False
-    if target_natural_freq_input > 0:
-        selected_natural_freq = target_natural_freq_input
-        is_manual = True
+# 메인 영역 - 결과 표시
+if calculate_button:
+    # 입력 검증
+    if load <= 0 or num_isolators <= 0 or excite_freq <= 0:
+        st.error("⚠️ 모든 입력값은 0보다 커야 합니다.")
     else:
-        selected_natural_freq = 0.35 * excite_freq
-
-    # 3단계: 강성(k) 계산
-    # k = (2 * pi * fn)^2 * m
-    total_stiffness = math.pow(2 * math.pi * selected_natural_freq, 2) * load
-    each_stiffness = total_stiffness / num_isolators
-    each_load = load / num_isolators
-
-    # 4단계: 처짐량(Deflection)
-    # d approx 250 / fn^2
-    deflection = 250 / math.pow(selected_natural_freq, 2)
-
-    # 5단계: 격리 효율(Efficiency)
-    freq_ratio = excite_freq / selected_natural_freq
-    
-    in_resonance = False
-    transmissibility = 0.0
-    isolation_eff = 0.0
-
-    if freq_ratio <= 1.414:
-        in_resonance = True
-        transmissibility = 1 / abs(1 - math.pow(freq_ratio, 2))
-        isolation_eff = 0 # 증폭됨
-    else:
-        transmissibility = 1 / (math.pow(freq_ratio, 2) - 1)
-        isolation_eff = (1 - transmissibility) * 100
-
-    # --- 결과 출력 화면 ---
-    
-    st.header("📊 분석 결과")
-
-    # 1. 주파수 분석 결과
-    st.subheader("1. 주파수 및 선정 제원")
-    r_col1, r_col2, r_col3 = st.columns(3)
-    r_col1.metric("가진 주파수", f"{excite_freq:.2f} Hz")
-    r_col2.metric("최대 허용 고유진동수", f"{max_natural_freq:.2f} Hz", delta="이하 유지 필요", delta_color="inverse")
-    
-    selection_desc = " (사용자 지정)" if is_manual else " (자동: 35%)"
-    r_col3.metric("선정 고유진동수", f"{selected_natural_freq:.2f} Hz", selection_desc)
-
-    # 2. 물리적 제원
-    st.divider()
-    st.subheader("2. 필요 스프링/방진재 제원")
-    
-    k_col1, k_col2, k_col3 = st.columns(3)
-    k_col1.metric("개별 지지 하중", f"{each_load:.1f} kg")
-    k_col2.metric("개별 필요 강성", f"{each_stiffness:.0f} N/m")
-    
-    # 처짐량 평가
-    defl_status = ""
-    if deflection < 3:
-        defl_status = "⚠️ 너무 작음 (방진고무)"
-    elif 3 <= deflection <= 50:
-        defl_status = "✅ 적절함"
-    else:
-        defl_status = "⚠️ 너무 큼 (조정 필요)"
+        # 계산 시작
+        st.success("✅ 계산 완료!")
         
-    k_col3.metric("요구 정적 처짐", f"{deflection:.2f} mm", defl_status)
-
-    # 3. 효율 검증
-    st.divider()
-    st.subheader("3. 격리 성능 검증")
-    
-    if in_resonance:
-        st.error(f"### ⚠️ 공진 위험 (증폭 영역)")
-        st.write(f"주파수 비: **{freq_ratio:.2f}** (√2 = 1.414 이하)")
-        st.write(f"전달률: **{transmissibility:.2f}** (진동이 증폭되어 전달됨)")
-    else:
-        # 효율 달성 여부
-        if isolation_eff >= target_efficiency:
-            st.success(f"### 🎯 목표 달성: {isolation_eff:.2f}%")
-        elif isolation_eff >= target_efficiency - 5:
-            st.warning(f"### ⚠️ 보통: {isolation_eff:.2f}% (목표: {target_efficiency}%)")
-        else:
-            st.error(f"### ❌ 미달: {isolation_eff:.2f}% (목표: {target_efficiency}%)")
+        # 탭으로 구성
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "🎯 1단계: 가진주파수", 
+            "📊 2단계: 고유진동수", 
+            "⚙️ 3단계: 스프링강성",
+            "📏 4단계: 처짐량",
+            "✅ 5단계: 격리성능",
+            "💡 제품선정"
+        ])
+        
+        # 1단계: 가진 주파수
+        with tab1:
+            st.subheader("🎯 가진 주파수 분석")
             
-        st.write(f"주파수 비: **{freq_ratio:.2f}** (> 1.414 안전)")
-        st.write(f"전달률: **{transmissibility:.4f}**")
-
-    # 4. 추천 가이드
-    st.divider()
-    with st.expander("💡 제품 선정 가이드 및 조치 사항", expanded=True):
-        if in_resonance:
-            st.markdown(f"- 🔴 **[위험]** 현재 설정은 공진 영역입니다. 고유 진동수를 **{max_natural_freq:.1f} Hz 미만**으로 낮추십시오.")
-        else:
-            if selected_natural_freq < 10:
-                st.markdown("- **[제품]** 낮은 고유진동수가 필요하므로 **스프링 마운트/행거**를 권장합니다.")
+            st.markdown(f"""
+            <div class="formula-box">
+            f<sub>excite</sub> = 입력값 (Hz)
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown(f"""
+            <div class="calculation-box">
+            입력값: f<sub>excite</sub> = {excite_freq:.2f} Hz
+            </div>
+            """, unsafe_allow_html=True)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("가진 주파수", f"{excite_freq:.2f} Hz")
+        
+        # 2단계: 목표 고유진동수
+        with tab2:
+            st.subheader("📊 목표 고유진동수 계산")
+            
+            max_natural_freq = excite_freq / math.sqrt(2)
+            min_recommended_freq = 0.3 * excite_freq
+            max_recommended_freq = 0.4 * excite_freq
+            
+            if target_natural_freq > 0:
+                selected_natural_freq = target_natural_freq
+                is_manual = True
             else:
-                st.markdown("- **[제품]** **방진 고무** 또는 **방진 패드** 사용이 가능할 수 있습니다.")
+                selected_natural_freq = 0.35 * excite_freq
+                is_manual = False
             
-            st.markdown(f"- **[스펙]** 개당 하중 **{(each_load * 1.2):.1f} kg 이상** (안전율 20% 적용) 제품을 선정하세요.")
-            st.markdown(f"- **[스펙]** 하중 작용 시 **약 {deflection:.1f} mm**가 눌리는(처지는) 제품이어야 합니다.")
-
-        if is_manual and selected_natural_freq > max_natural_freq:
-            st.markdown("- ⚠️ **[주의]** 입력한 목표 고유 진동수가 너무 높습니다. 격리 효율이 떨어질 수 있습니다.")
+            st.markdown(f"""
+            <div class="formula-box">
+            f<sub>n</sub> = 사용자 입력값 또는 자동 계산 (0.35 × f<sub>excite</sub>)<br>
+            최대 허용: f<sub>n,max</sub> = f<sub>excite</sub> / √2<br>
+            권장 범위: 0.3 × f<sub>excite</sub> ~ 0.4 × f<sub>excite</sub>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            calc_text = f"""
+            <div class="calculation-box">
+            최대 허용: f<sub>n,max</sub> = {excite_freq:.2f} / √2 = {excite_freq:.2f} / 1.414 = {max_natural_freq:.2f} Hz<br>
+            권장 최소: 0.3 × {excite_freq:.2f} = {min_recommended_freq:.2f} Hz<br>
+            권장 최대: 0.4 × {excite_freq:.2f} = {max_recommended_freq:.2f} Hz<br>
+            선정값: f<sub>n</sub> = {selected_natural_freq:.2f} Hz {'(사용자 지정)' if is_manual else f'(0.35 × {excite_freq:.2f})'}
+            </div>
+            """
+            st.markdown(calc_text, unsafe_allow_html=True)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("최대 허용 고유진동수", f"{max_natural_freq:.2f} Hz")
+            with col2:
+                st.metric("권장 범위", f"{min_recommended_freq:.2f} ~ {max_recommended_freq:.2f} Hz")
+            with col3:
+                selection_text = "사용자 지정" if is_manual else "자동 계산"
+                st.metric("선정 고유진동수", f"{selected_natural_freq:.2f} Hz", delta=selection_text)
         
-        if excite_freq < 5:
-            st.markdown("- ⚠️ **[초저주파]** 매우 낮은 주파수 가진입니다. **공기 스프링(Air Spring)** 등 특수 장치를 검토하세요.")
+        # 3단계: 스프링 강성
+        with tab3:
+            st.subheader("⚙️ 스프링 강성 계산")
+            
+            omega = 2 * math.pi * selected_natural_freq
+            total_stiffness = omega**2 * load
+            each_stiffness = total_stiffness / num_isolators
+            each_load = load / num_isolators
+            
+            st.markdown(f"""
+            <div class="formula-box">
+            f<sub>n</sub> = (1/2π) × √(k/m)<br>
+            k<sub>total</sub> = (2π × f<sub>n</sub>)² × m (N/m)<br>
+            k<sub>each</sub> = k<sub>total</sub> / n (개별 강성)
+            </div>
+            """, unsafe_allow_html=True)
+            
+            calc_text = f"""
+            <div class="calculation-box">
+            ω = 2π × f<sub>n</sub> = 2π × {selected_natural_freq:.2f} = {omega:.2f} rad/s<br>
+            k<sub>total</sub> = ω² × m = ({omega:.2f})² × {load:.1f} = {total_stiffness:.0f} N/m<br>
+            k<sub>each</sub> = k<sub>total</sub> / n = {total_stiffness:.0f} / {num_isolators} = {each_stiffness:.0f} N/m<br>
+            개별 하중 = {load:.1f} / {num_isolators} = {each_load:.1f} kg
+            </div>
+            """
+            st.markdown(calc_text, unsafe_allow_html=True)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("전체 시스템 강성", f"{total_stiffness:.0f} N/m")
+            with col2:
+                st.metric("개별 아이솔레이터 강성", f"{each_stiffness:.0f} N/m")
+            with col3:
+                st.metric("개별 아이솔레이터 하중", f"{each_load:.1f} kg")
+        
+        # 4단계: 처짐량
+        with tab4:
+            st.subheader("📏 처짐량 계산")
+            
+            deflection = 250 / (selected_natural_freq**2)
+            
+            st.markdown(f"""
+            <div class="formula-box">
+            δ = mg / k = g / (2πf<sub>n</sub>)² × 1000 ≈ 250 / f<sub>n</sub>² (mm)
+            </div>
+            """, unsafe_allow_html=True)
+            
+            calc_text = f"""
+            <div class="calculation-box">
+            δ = 250 / f<sub>n</sub>² = 250 / ({selected_natural_freq:.2f})²<br>
+            δ = 250 / {selected_natural_freq**2:.2f} = {deflection:.2f} mm
+            </div>
+            """
+            st.markdown(calc_text, unsafe_allow_html=True)
+            
+            # 처짐 평가
+            if deflection < 3:
+                deflection_status = "너무 작음 (방진고무 검토)"
+                deflection_class = "status-warning"
+            elif deflection >= 3 and deflection <= 50:
+                deflection_status = "적절함"
+                deflection_class = "status-good"
+            else:
+                deflection_status = "너무 큼 (스프링 상수 조정 필요)"
+                deflection_class = "status-warning"
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("정적 처짐", f"{deflection:.2f} mm")
+            with col2:
+                st.markdown(f'<span class="{deflection_class}">{deflection_status}</span>', unsafe_allow_html=True)
+        
+        # 5단계: 격리 성능
+        with tab5:
+            st.subheader("✅ 격리 성능 검증")
+            
+            freq_ratio = excite_freq / selected_natural_freq
+            
+            st.markdown(f"""
+            <div class="formula-box">
+            주파수 비율: r = f<sub>excite</sub> / f<sub>n</sub><br>
+            전달률: T = 1 / (r² - 1) (r > √2일 때)<br>
+            격리율: η = (1 - T) × 100 (%)
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if freq_ratio <= 1.414:
+                # 공진 영역
+                transmissibility = 1 / abs(1 - freq_ratio**2)
+                isolation_efficiency = 0
+                
+                calc_text = f"""
+                <div class="calculation-box" style="border-left-color: #c62828;">
+                <b style="color: #c62828;">⚠️ 공진 영역 감지!</b><br>
+                r = f<sub>excite</sub> / f<sub>n</sub> = {excite_freq:.2f} / {selected_natural_freq:.2f} = {freq_ratio:.2f}<br>
+                r ≤ √2 (1.414) 이므로 공진/증폭 발생<br>
+                증폭률 = 1 / |1 - r²| = 1 / |1 - {freq_ratio**2:.2f}| = {transmissibility:.2f}
+                </div>
+                """
+                st.markdown(calc_text, unsafe_allow_html=True)
+                
+                st.error(f"⚠️ 경고: 주파수 비율 {freq_ratio:.2f}는 공진 영역입니다!")
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("주파수 비율", f"{freq_ratio:.2f}", delta="공진 영역")
+                with col2:
+                    st.metric("전달률", f"증폭 ({transmissibility:.2f})")
+                with col3:
+                    st.markdown('<span class="status-bad">격리 불가 (증폭)</span>', unsafe_allow_html=True)
+            else:
+                # 격리 영역
+                transmissibility = 1 / (freq_ratio**2 - 1)
+                isolation_efficiency = (1 - transmissibility) * 100
+                
+                calc_text = f"""
+                <div class="calculation-box">
+                r = f<sub>excite</sub> / f<sub>n</sub> = {excite_freq:.2f} / {selected_natural_freq:.2f} = {freq_ratio:.2f}<br>
+                r² = ({freq_ratio:.2f})² = {freq_ratio**2:.2f}<br>
+                T = 1 / (r² - 1) = 1 / ({freq_ratio**2:.2f} - 1) = {transmissibility:.4f}<br>
+                η = (1 - T) × 100 = (1 - {transmissibility:.4f}) × 100 = {isolation_efficiency:.2f}%
+                </div>
+                """
+                st.markdown(calc_text, unsafe_allow_html=True)
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("주파수 비율", f"{freq_ratio:.2f}", delta="격리 영역 ✓")
+                with col2:
+                    st.metric("전달률", f"{transmissibility:.4f}")
+                with col3:
+                    if isolation_efficiency >= target_efficiency:
+                        st.metric("실제 격리 효율", f"{isolation_efficiency:.2f}%", 
+                                 delta=f"목표: {target_efficiency}%", delta_color="normal")
+                    else:
+                        st.metric("실제 격리 효율", f"{isolation_efficiency:.2f}%", 
+                                 delta=f"목표: {target_efficiency}% (미달)", delta_color="inverse")
+        
+        # 6단계: 제품 선정 가이드
+        with tab6:
+            st.subheader("💡 제품 선정 가이드")
+            
+            recommendations = []
+            
+            if freq_ratio <= 1.414:
+                recommendations.append(f"⚠️ **경고**: 현재 설정은 공진 영역에 있습니다. 고유 진동수를 {max_natural_freq:.1f} Hz 미만으로 낮추십시오.")
+            else:
+                if selected_natural_freq < 10:
+                    recommendations.append(f"✅ 스프링 마운트/행거 권장 (고유진동수 {selected_natural_freq:.1f} Hz)")
+                else:
+                    recommendations.append(f"✅ 방진 고무 또는 패드 검토 가능 (고유진동수 {selected_natural_freq:.1f} Hz)")
+                
+                recommendations.append(f"📦 개당 하중 용량: **{each_load * 1.2:.1f} kg 이상** (안전율 20%)")
+                recommendations.append(f"📏 요구 정적 처짐: 약 **{deflection:.1f} mm**")
+            
+            if is_manual and selected_natural_freq > max_natural_freq:
+                recommendations.append(f"⚠️ **주의**: 입력한 목표 고유 진동수가 너무 높습니다. 격리 효율이 떨어질 수 있습니다.")
+            
+            if excite_freq < 5:
+                recommendations.append("🌀 초저주파 가진: 공기 스프링(Air Spring) 등 특수 제진 장치 검토 필요")
+            
+            st.markdown('<div class="recommendation-box">', unsafe_allow_html=True)
+            for rec in recommendations:
+                st.markdown(f"- {rec}")
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            # 요약 테이블
+            st.subheader("📋 설계 요약")
+            summary_data = {
+                "항목": [
+                    "가진 주파수",
+                    "선정 고유진동수",
+                    "주파수 비율",
+                    "전체 시스템 강성",
+                    "개별 강성",
+                    "개별 하중",
+                    "정적 처짐",
+                    "격리 효율"
+                ],
+                "값": [
+                    f"{excite_freq:.2f} Hz",
+                    f"{selected_natural_freq:.2f} Hz",
+                    f"{freq_ratio:.2f}",
+                    f"{total_stiffness:.0f} N/m",
+                    f"{each_stiffness:.0f} N/m",
+                    f"{each_load:.1f} kg",
+                    f"{deflection:.2f} mm",
+                    f"{isolation_efficiency:.2f}%" if freq_ratio > 1.414 else "격리 불가"
+                ]
+            }
+            st.table(summary_data)
+
+else:
+    st.info("👈 좌측 사이드바에서 파라미터를 입력하고 '계산하기' 버튼을 클릭하세요.")
+    
+    # 사용 안내
+    with st.expander("📖 사용 방법"):
+        st.markdown("""
+        ### 입력 파라미터
+        1. **지탱하중**: 진동 격리기가 지탱해야 할 총 하중 (kg)
+        2. **아이솔레이터 개수**: 사용할 진동 격리기의 개수
+        3. **가진 주파수**: 시스템에 가해지는 진동의 주파수 (Hz)
+           - 주파수 계산 도우미를 사용하여 속도와 간격으로 계산 가능
+        4. **목표 격리 효율**: 원하는 진동 격리 효율 (%)
+        5. **목표 고유 진동수**: 직접 지정하거나 0으로 두면 자동 계산
+        
+        ### 계산 결과
+        - **1단계**: 입력된 가진 주파수 확인
+        - **2단계**: 최적 고유 진동수 계산
+        - **3단계**: 필요한 스프링 강성 계산
+        - **4단계**: 예상 처짐량 계산
+        - **5단계**: 격리 성능 검증
+        - **6단계**: 제품 선정 가이드 제공
+        
+        ### 주의사항
+        - 주파수 비율이 √2 (1.414) 이하면 공진 발생
+        - 처짐량이 3~50mm 범위가 적절
+        - 개별 하중에 안전율 20% 이상 적용 권장
+        """)
+    
+    with st.expander("📐 이론 배경"):
+        st.markdown("""
+        ### 진동 격리 원리
+        
+        진동 격리기는 **공진 주파수보다 높은 가진 주파수**에서 효과적으로 작동합니다.
+        
+        **주요 공식:**
+        - 고유 진동수: `fn = (1/2π) × √(k/m)`
+        - 주파수 비율: `r = f_excite / f_n`
+        - 전달률: `T = 1 / (r² - 1)` (r > √2일 때)
+        - 격리율: `η = (1 - T) × 100%`
+        
+        **설계 기준:**
+        - r > √2 (1.414): 격리 영역
+        - r = 1: 공진 (최대 증폭)
+        - r < √2: 증폭 영역
+        
+        **권장 고유진동수:**
+        - 가진 주파수의 30~40% (일반적으로 35%)
+        - 최대 허용: 가진 주파수 / √2
+        """)
